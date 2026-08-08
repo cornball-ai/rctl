@@ -64,6 +64,13 @@ expect_message(s <- enc(list(msg = bad)), pattern = "invalid UTF-8")
 expect_true(grepl("a�b", s, fixed = TRUE))
 expect_true(validUTF8(s))
 
+# declared-latin1 strings are transcoded, not passed through raw
+lat <- iconv("café", "UTF-8", "latin1")
+Encoding(lat) <- "latin1"
+s <- enc(list(msg = lat))
+expect_true(grepl("café", s, fixed = TRUE))
+expect_true(validUTF8(s))
+
 # --- Large numbers: no scientific notation, no precision loss ---
 
 s <- enc(list(usec = 1786145400000000))
