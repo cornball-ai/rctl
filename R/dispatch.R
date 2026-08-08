@@ -167,8 +167,22 @@ op_capabilities <- function(pos, opts) {
          rctl_version = as.character(utils::packageVersion("rctl")),
          operations = names(ops),
          mutating_operations = mutating,
-         subsystems = subs
+         subsystems = subs,
+         audit = audit_capability()
     )
+}
+
+## Host audit capability, read-only: whether a mutation's audit can be made
+## system-durable here, and the scope a system-scope mutation's record would be
+## written under (runix authority matrix). A fleet policy reads this to refuse
+## system-scope mutations that would only be caller-durably audited. No prompt,
+## no mutation. Falls back gracefully if the runix helpers are unavailable.
+audit_capability <- function() {
+    tryCatch(
+             list(system_durable_audit = runix::system_durable_audit_available(),
+                  audit_scope = runix::audit_scope_for("system")),
+             error = function(e) list(system_durable_audit = FALSE,
+                                      audit_scope = NA_character_))
 }
 
 dispatch <- function(operation, pos, opts) {
