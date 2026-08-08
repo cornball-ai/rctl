@@ -73,10 +73,13 @@ expect_false(grepl("e+", s, fixed = TRUE))
 s <- enc(list(big = 2^50))
 expect_true(grepl('"big":1125899906842624', s, fixed = TRUE))
 
-# small doubles and integers stay plain numbers
-s <- enc(list(m = 22671360, n = 42L))
-expect_true(grepl('"m":22671360', s, fixed = TRUE))
+# small doubles stay plain numbers (yyjson marks doubles with .0,
+# type-faithful and deterministic); integers stay bare
+s <- enc(list(m = 22671360, f = 0.5, n = 42L))
+expect_true(grepl('"m":22671360.0', s, fixed = TRUE))
+expect_true(grepl('"f":0.5', s, fixed = TRUE))
 expect_true(grepl('"n":42', s, fixed = TRUE))
+expect_false(grepl("e+", s, fixed = TRUE))
 
 # a big value inside a data frame column is a refusal, never corruption
 dfbig <- data.frame(x = c(1, 1786145400000000))
@@ -122,3 +125,18 @@ one <- structure(class = c("weird_error", "error", "condition"),
     list(message = "x", call = NULL))
 s <- rctl:::envelope_error("t", one)
 expect_true(grepl('"class":["weird_error"]', s, fixed = TRUE))
+
+# --- Golden envelope bytes: the exact wire format is pinned ---
+
+expect_equal(enc(list(a = 1L, b = "x", t = TRUE)), paste0(
+    '{"schema_version":1,"operation":"t","ok":true,',
+    '"result":{"a":1,"b":"x","t":true}}\n'))
+
+# --- json-verbatim smuggling is neutralized: incoming json-class values
+# --- are re-encoded as plain strings; only the internal validated
+# --- numeric token may pass verbatim ---
+
+s <- enc(list(x = structure('{"evil":true}', class = "json")))
+expect_true(grepl('"x":"{\\"evil\\":true}"', s, fixed = TRUE))
+e <- tryCatch(rctl:::num_token(Inf), error = identity)
+expect_inherits(e, "rctl_error")

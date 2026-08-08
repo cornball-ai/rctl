@@ -1,6 +1,9 @@
 ## Deterministic JSON encoding, per docs/rctl-json-contract.md in
-## cornball-ai/runix. Every rule here is fixture-tested in
-## inst/tinytest/test_encode.R.
+## cornball-ai/runix. Backend: yyjsonr (C yyjson, zero R deps, MIT) —
+## writes doubles losslessly, so big whole numbers survive without the
+## precision loss jsonlite's formatter introduces at 1e15. Every rule here
+## is fixture-tested in inst/tinytest/test_encode.R, including golden
+## envelope bytes.
 
 ENVELOPE_SCHEMA_VERSION <- 1L
 
@@ -18,7 +21,9 @@ rfc3339 <- function(x) {
 }
 
 ## Strings must always be valid UTF-8; invalid sequences become U+FFFD
-## with a diagnostic on stderr.
+## with a diagnostic on stderr. yyjson refuses invalid UTF-8 outright, so
+## this pre-replacement is what keeps machine mode emitting instead of
+## dying — the library is the backstop, not the policy.
 fix_utf8 <- function(x) {
     bad <- !is.na(x) & !validUTF8(x)
     if (any(bad)) {
@@ -28,12 +33,27 @@ fix_utf8 <- function(x) {
     x
 }
 
-## jsonlite renders whole doubles >= 1e15 in scientific notation with
-## precision loss. Scalars that large are emitted verbatim; inside a data
-## frame column there is no safe path, so refuse rather than corrupt.
+## The ONLY producer of json-verbatim values: an internally generated,
+## validated integer token. Arbitrary strings never pass through
+## json_verbatim — prepare() strips any json class arriving on input.
+num_token <- function(v) {
+    s <- sprintf("%.0f", v)
+    if (!grepl("^-?[0-9]+$", s)) {
+        stop_rctl("internal: numeric token failed validation: ", s)
+    }
+    structure(s, class = "json")
+}
+
+## Whole doubles >= 1e15 are emitted as verbatim integer tokens (bare,
+## exact); inside a data frame column there is no verbatim path, so
+## refuse rather than corrupt.
 BIG <- 1e15
 
 prepare <- function(x, in_frame = FALSE) {
+    if (inherits(x, "json")) {
+        ## never trust incoming verbatim values
+        x <- unclass(x)
+    }
     if (inherits(x, "POSIXct")) {
         return(rfc3339(x))
     }
@@ -59,11 +79,11 @@ prepare <- function(x, in_frame = FALSE) {
                           "(non-integral or >= 2^53)")
             }
             if (length(x) == 1L) {
-                return(structure(sprintf("%.0f", x), class = "json"))
+                return(num_token(x))
             }
             return(lapply(x, function(v) {
                 if (!is.na(v) && abs(v) >= BIG) {
-                    structure(sprintf("%.0f", v), class = "json")
+                    num_token(v)
                 } else {
                     v
                 }
@@ -73,14 +93,17 @@ prepare <- function(x, in_frame = FALSE) {
     x
 }
 
+write_opts <- function() {
+    yyjsonr::opts_write_json(dataframe = "rows", auto_unbox = TRUE,
+                             json_verbatim = TRUE, str_specials = "null",
+                             num_specials = "null")
+}
+
 envelope <- function(operation, ok, key, value) {
-    body <- list(schema_version = jsonlite::unbox(ENVELOPE_SCHEMA_VERSION),
-                 operation = jsonlite::unbox(operation),
-                 ok = jsonlite::unbox(ok))
+    body <- list(schema_version = ENVELOPE_SCHEMA_VERSION,
+                 operation = operation, ok = ok)
     body[[key]] <- value
-    paste0(jsonlite::toJSON(body, auto_unbox = TRUE, na = "null",
-                            dataframe = "rows", digits = NA, null = "null",
-                            json_verbatim = TRUE), "\n")
+    paste0(yyjsonr::write_json_str(body, opts = write_opts()), "\n")
 }
 
 envelope_success <- function(operation, result) {
@@ -89,14 +112,14 @@ envelope_success <- function(operation, result) {
 
 envelope_error <- function(operation, cond) {
     resource <- if (is.null(cond$resource)) {
-        jsonlite::unbox(NA_character_)
+        NA_character_
     } else {
-        jsonlite::unbox(as.character(cond$resource)[1L])
+        as.character(cond$resource)[1L]
     }
     envelope(operation, FALSE, "error", list(
             class = I(setdiff(class(cond), c("error", "condition"))),
-            message = jsonlite::unbox(fix_utf8(conditionMessage(cond))),
-            retryable = jsonlite::unbox(is_retryable(cond)),
+            message = fix_utf8(conditionMessage(cond)),
+            retryable = is_retryable(cond),
             resource = resource
         ))
 }
