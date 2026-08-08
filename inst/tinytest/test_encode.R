@@ -134,6 +134,22 @@ withres <- structure(
 d <- dec(rctl:::envelope_error("capabilities", withres))
 expect_equal(d$error$resource, "pkgstate")
 
+# a failed mutation carries its audit correlation through the error envelope,
+# so an agent can join the failure to its durable audit records.
+mut_err <- structure(
+    class = c("runix_operation_failed", "rsystemd_error", "runix_error",
+        "error", "condition"),
+    list(message = "failed", call = NULL, resource = "x.service",
+        observed = list(active_state = "failed"),
+        correlation_id = "cid-42", audit_scope = "caller",
+        audit_persisted = TRUE)
+)
+d <- dec(rctl:::envelope_error("services.restart", mut_err))
+expect_equal(d$error$correlation_id, "cid-42")
+expect_equal(d$error$audit_scope, "caller")
+expect_true(d$error$audit_persisted)
+expect_equal(d$error$observed$active_state, "failed")
+
 # single-element class vectors stay JSON arrays
 one <- structure(class = c("weird_error", "error", "condition"),
     list(message = "x", call = NULL))

@@ -69,6 +69,13 @@ expect_true("services.start" %in% mut)
 expect_false("services.units" %in% mut) # read-only not listed
 expect_false("packages.installed" %in% mut)
 
+# --- capabilities advertises the audit authority (fleet policy gate) -----
+
+expect_false(is.null(r$doc$result$audit))
+expect_true(is.logical(unlist(r$doc$result$audit$system_durable_audit)))
+# a system-scope mutation's record scope is one of the authority-matrix values
+expect_true(unlist(r$doc$result$audit$audit_scope) %in% c("system", "caller"))
+
 # --- restart success: runix_result flows through the envelope unchanged --
 
 old <- rsystemd:::set_runner(fake_systemctl(
