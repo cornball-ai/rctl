@@ -136,10 +136,12 @@ envelope_error <- function(operation, cond) {
     envelope(operation, FALSE, "error", body)
 }
 
-## The retryability table: agents branch on class, never message. Classes
-## absent from this table are not retryable.
-RETRYABLE_CLASSES <- c("pkgstate_cache_race")
-
+## Retryability comes from the shared runix registry, not a hardcoded table:
+## each subsystem declares its retryable classes in .onLoad (pkgstate registers
+## pkgstate_cache_race), and rctl classifies via runix::is_retryable(). By the
+## time a subsystem condition reaches the envelope its package is loaded --
+## dispatch required it -- so its classes are already registered. Agents branch
+## on the class vector, never the message.
 is_retryable <- function(cond) {
-    any(class(cond) %in% RETRYABLE_CLASSES)
+    runix::is_retryable(cond)
 }
