@@ -25,6 +25,9 @@ rfc3339 <- function(x) {
 ## this pre-replacement is what keeps machine mode emitting instead of
 ## dying — the library is the backstop, not the policy.
 fix_utf8 <- function(x) {
+    ## audit finding: yyjsonr's glue assumes UTF-8 and never transcodes,
+    ## so declared-latin1 strings must be converted before they reach it
+    x <- enc2utf8(x)
     bad <- !is.na(x) & !validUTF8(x)
     if (any(bad)) {
         message("rctl: replaced invalid UTF-8 in ", sum(bad), " value(s)")

@@ -1,7 +1,7 @@
 Package: rctl
 Type: Package
 Title: Runix Command-Line Interface
-Version: 0.0.1
+Version: 0.0.1.1
 Date: 2026-08-07
 Authors@R: c(
     person("Troy", "Hernandez", role = c("aut", "cre"), email = "troy@cornball.ai",
