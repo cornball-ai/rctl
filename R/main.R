@@ -62,16 +62,19 @@ exit_code <- function(cond) {
 }
 
 ## Never throws: parse problems land in $error so machine mode can still
-## emit an envelope. --json anywhere; --key=value options; leading
-## non-flag words form the operation (two words joined with ".", or one,
-## or a literal dotted name); the rest are positional.
+## emit an envelope. --json / --preview are boolean flags; --key=value are
+## options; leading non-flag words form the operation (two words joined
+## with ".", or one, or a literal dotted name); the rest are positional.
+BOOL_FLAGS <- c("--json", "--preview")
+
 parse_argv <- function(argv) {
-    out <- list(operation = "unknown", json = FALSE,
+    out <- list(operation = "unknown", json = FALSE, preview = FALSE,
                 positional = character(), opts = list(), error = NULL)
     flags <- startsWith(argv, "--")
     out$json <- "--json" %in% argv
+    out$preview <- "--preview" %in% argv
     for (f in argv[flags]) {
-        if (f == "--json") {
+        if (f %in% BOOL_FLAGS) {
             next
         }
         if (!grepl("^--[a-z][a-z-]*=", f)) {
@@ -86,6 +89,7 @@ parse_argv <- function(argv) {
         key <- sub("^--([a-z][a-z-]*)=.*$", "\\1", f)
         out$opts[[key]] <- sub("^--[a-z][a-z-]*=", "", f)
     }
+    out$opts$preview <- out$preview # boolean flag visible to handlers
     words <- argv[!flags]
     known <- names(operations())
     if (length(words) >= 2L &&
