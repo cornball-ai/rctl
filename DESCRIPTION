@@ -15,7 +15,7 @@ Description: The Runix command-line interface: a machine-drivable CLI over
     capability introspection succeeds even where they are absent.
 License: MIT + file LICENSE
 OS_type: unix
-Imports: jsonlite
-Suggests: littler, rdpkg, rsystemd, tinytest
+Imports: yyjsonr (>= 0.1.22)
+Suggests: jsonlite, littler, rdpkg, rsystemd, tinytest
 Encoding: UTF-8
 Config/roxygen2/version: 8.0.0

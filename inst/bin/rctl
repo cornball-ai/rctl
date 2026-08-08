@@ -1,0 +1,4 @@
+#!/usr/bin/env r
+## littler launcher: all semantics live in rctl::main().
+status <- rctl::main(if (exists("argv")) as.character(argv) else character())
+q(status = status, save = "no")
