@@ -113,23 +113,32 @@ envelope_success <- function(operation, result) {
     envelope(operation, TRUE, "result", prepare(result))
 }
 
+## Mutation error fields carried through to the envelope when present on the
+## condition, so a machine-readable failure is as truthful about post-state
+## as a success result (Phase 2 contract).
+ERROR_PASSTHROUGH <- c("observed", "observed_failed", "observed_reason",
+                       "elapsed", "polkit_action")
+
 envelope_error <- function(operation, cond) {
     resource <- if (is.null(cond$resource)) {
         NA_character_
     } else {
         as.character(cond$resource)[1L]
     }
-    envelope(operation, FALSE, "error", list(
-            class = I(setdiff(class(cond), c("error", "condition"))),
-            message = fix_utf8(conditionMessage(cond)),
-            retryable = is_retryable(cond),
-            resource = resource
-        ))
+    body <- list(class = I(setdiff(class(cond), c("error", "condition"))),
+                 message = fix_utf8(conditionMessage(cond)),
+                 retryable = is_retryable(cond), resource = resource)
+    for (f in ERROR_PASSTHROUGH) {
+        if (!is.null(cond[[f]])) {
+            body[[f]] <- prepare(cond[[f]])
+        }
+    }
+    envelope(operation, FALSE, "error", body)
 }
 
 ## The retryability table: agents branch on class, never message. Classes
 ## absent from this table are not retryable.
-RETRYABLE_CLASSES <- c("rdpkg_cache_race")
+RETRYABLE_CLASSES <- c("pkgstate_cache_race")
 
 is_retryable <- function(cond) {
     any(class(cond) %in% RETRYABLE_CLASSES)

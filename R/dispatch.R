@@ -19,67 +19,72 @@ set_has_pkg <- function(f = NULL) {
     invisible(old)
 }
 
-## Each operation: the subsystem package it needs (NA for none) and a
-## handler taking (positional args, named options).
+## Each operation: the subsystem package it needs (NA for none), whether it
+## mutates system state, and a handler taking (positional args, named
+## options). Mutation handlers delegate wholesale to rsystemd and return its
+## runix_result / raise its typed conditions unchanged — rctl adds no
+## mutation semantics of its own.
 operations <- function() {
+    ro <- function(pkg, fn) list(pkg = pkg, mutates = FALSE, fn = fn)
+    mut <- function(pkg, fn) list(pkg = pkg, mutates = TRUE, fn = fn)
     list(
-         "capabilities" = list(pkg = NA_character_, fn = op_capabilities),
-         "packages.installed" = list(pkg = "rdpkg",
-                                     fn = function(pos, opts) rdpkg::dpkg_installed()),
-         "packages.upgradable" = list(pkg = "rdpkg",
-                                      fn = function(pos, opts) rdpkg::apt_upgradable()),
-         "packages.origins" = list(pkg = "rdpkg",
-                                   fn = function(pos, opts) {
+         "capabilities" = ro(NA_character_, op_capabilities),
+         "packages.installed" = ro("pkgstate",
+                                   function(pos, opts) pkgstate::dpkg_installed()),
+         "packages.upgradable" = ro("pkgstate",
+                                    function(pos, opts) pkgstate::apt_upgradable()),
+         "packages.origins" = ro("pkgstate", function(pos, opts) {
         if (length(pos) == 0L) {
             stop_rctl("packages.origins needs package names",
                       class = "rctl_usage_error")
         }
-        rdpkg::apt_origins(pos)
+        pkgstate::apt_origins(pos)
     }),
-         "packages.candidates" = list(pkg = "rdpkg",
-                                      fn = function(pos, opts) {
+         "packages.candidates" = ro("pkgstate", function(pos, opts) {
         if (length(pos) == 0L) {
             stop_rctl("packages.candidates needs package names",
                       class = "rctl_usage_error")
         }
-        rdpkg::apt_candidates(pos)
+        pkgstate::apt_candidates(pos)
     }),
-         "packages.policy" = list(pkg = "rdpkg",
-                                  fn = function(pos, opts) {
+         "packages.policy" = ro("pkgstate", function(pos, opts) {
         if (length(pos) != 1L) {
             stop_rctl("packages.policy needs exactly one package",
                       class = "rctl_usage_error")
         }
-        rdpkg::apt_policy(pos)
+        pkgstate::apt_policy(pos)
     }),
-         "packages.cache-timestamps" = list(pkg = "rdpkg",
-            fn = function(pos, opts) rdpkg::apt_cache_timestamps()),
-         "services.units" = list(pkg = "rsystemd",
-                                 fn = function(pos, opts) {
+         "packages.cache-timestamps" = ro("pkgstate",
+            function(pos, opts) pkgstate::apt_cache_timestamps()),
+         "services.units" = ro("rsystemd", function(pos, opts) {
         rsystemd::systemd_units(pattern = if (length(pos) > 0L) {
                 pos[1L]
             })
     }),
-         "services.info" = list(pkg = "rsystemd",
-                                fn = function(pos, opts) {
-        if (length(pos) != 1L) {
-            stop_rctl("services.info needs exactly one unit",
-                      class = "rctl_usage_error")
-        }
-        rsystemd::systemd_unit_info(pos)
+         "services.info" = ro("rsystemd", function(pos, opts) {
+        rsystemd::systemd_unit_info(one_unit(pos, "services.info"),
+                                    scope = opt_scope(opts))
     }),
-         "services.timers" = list(pkg = "rsystemd",
-                                  fn = function(pos, opts) rsystemd::systemd_timers()),
-         "services.journal" = list(pkg = "rsystemd",
-                                   fn = function(pos, opts) {
-        n <- opt_int(opts, "n", 1000L)
-        priority <- opt_int(opts, "priority", NULL)
+         "services.timers" = ro("rsystemd",
+                                function(pos, opts) rsystemd::systemd_timers()),
+         "services.journal" = ro("rsystemd", function(pos, opts) {
         rsystemd::systemd_journal(unit = opts[["unit"]],
-                                  priority = priority, since = opts[["since"]],
-                                  until = opts[["until"]], n = n)
+                                  priority = opt_int(opts, "priority", NULL),
+                                  since = opts[["since"]], until = opts[["until"]],
+                                  n = opt_int(opts, "n", 1000L))
     }),
-         "services.state" = list(pkg = "rsystemd",
-                                 fn = function(pos, opts) rsystemd::systemd_state())
+         "services.state" = ro("rsystemd",
+                               function(pos, opts) rsystemd::systemd_state()),
+         "services.start" = mut("rsystemd", mutation_handler(
+                rsystemd::systemd_start, "services.start")),
+         "services.stop" = mut("rsystemd", mutation_handler(
+                rsystemd::systemd_stop, "services.stop")),
+         "services.restart" = mut("rsystemd", mutation_handler(
+                rsystemd::systemd_restart, "services.restart")),
+         "services.enable" = mut("rsystemd", mutation_handler(
+                rsystemd::systemd_enable, "services.enable")),
+         "services.disable" = mut("rsystemd", mutation_handler(
+                rsystemd::systemd_disable, "services.disable"))
     )
 }
 
@@ -96,9 +101,58 @@ opt_int <- function(opts, name, default) {
     out
 }
 
+## Numeric option (fractional allowed) — timeouts may be sub-second. Value
+## validation (positivity) is left to rsystemd; a non-numeric spelling is a
+## usage error here.
+opt_num <- function(opts, name, default) {
+    v <- opts[[name]]
+    if (is.null(v)) {
+        return(default)
+    }
+    out <- suppressWarnings(as.numeric(v))
+    if (is.na(out)) {
+        stop_rctl("--", name, " must be a number, got: ", v,
+                  class = "rctl_usage_error")
+    }
+    out
+}
+
+## --scope option; validation of the value is left to rsystemd (single
+## source of truth for the allowed set), but a wrong count is a usage error.
+opt_scope <- function(opts) {
+    v <- opts[["scope"]]
+    if (is.null(v)) {
+        "system"
+    } else {
+        v
+    }
+}
+
+one_unit <- function(pos, op) {
+    if (length(pos) != 1L) {
+        stop_rctl(op, " needs exactly one unit", class = "rctl_usage_error")
+    }
+    pos
+}
+
+## A mutation handler is a thin closure over an rsystemd verb: it maps the
+## CLI surface (positional unit, --scope, --timeout, --preview) onto the
+## verb's arguments and returns whatever the verb returns / raises. No
+## result reshaping, no error reclassification.
+mutation_handler <- function(verb, op) {
+    force(verb)
+    force(op)
+    function(pos, opts) {
+        unit <- one_unit(pos, op)
+        verb(unit, scope = opt_scope(opts),
+             dry_run = isTRUE(opts[["preview"]]),
+             timeout = opt_num(opts, "timeout", 90))
+    }
+}
+
 op_capabilities <- function(pos, opts) {
     probe <- has_pkg()
-    subs <- lapply(c(rdpkg = "rdpkg", rsystemd = "rsystemd"), function(p) {
+    subs <- lapply(c(pkgstate = "pkgstate", rsystemd = "rsystemd"), function(p) {
         if (probe(p)) {
             list(present = TRUE,
                  version = as.character(utils::packageVersion(p)))
@@ -106,9 +160,13 @@ op_capabilities <- function(pos, opts) {
             list(present = FALSE)
         }
     })
+    ops <- operations()
+    mutating <- names(ops)[vapply(ops, function(o) isTRUE(o$mutates),
+                                  logical(1))]
     list(
          rctl_version = as.character(utils::packageVersion("rctl")),
-         operations = names(operations()),
+         operations = names(ops),
+         mutating_operations = mutating,
          subsystems = subs
     )
 }

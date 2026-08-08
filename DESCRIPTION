@@ -1,21 +1,22 @@
 Package: rctl
 Type: Package
 Title: Runix Command-Line Interface
-Version: 0.0.1.1
+Version: 0.0.1.2
 Date: 2026-08-07
 Authors@R: c(
     person("Troy", "Hernandez", role = c("aut", "cre"), email = "troy@cornball.ai",
            comment = c(ORCID = "0009-0005-4248-604X")),
     person("cornball.ai", role = "cph"))
 Description: The Runix command-line interface: a machine-drivable CLI over
-    the Runix read-only introspection packages. In machine mode ('--json')
-    it emits exactly one versioned JSON envelope per invocation, with typed
-    errors carrying condition classes and retryability; human mode is
-    explicitly unstable. Subsystem packages are detected at runtime, so
-    capability introspection succeeds even where they are absent.
+    the Runix subsystem packages, covering read-only introspection and
+    managed service mutations. In machine mode ('--json') it emits exactly
+    one versioned JSON envelope per invocation, with typed errors carrying
+    condition classes and retryability; human mode is explicitly unstable.
+    Subsystem packages are detected at runtime, so capability introspection
+    succeeds even where they are absent.
 License: MIT + file LICENSE
 OS_type: unix
 Imports: yyjsonr (>= 0.1.22)
-Suggests: jsonlite, littler, rdpkg, rsystemd, tinytest
+Suggests: jsonlite, littler, pkgstate, rsystemd, tinytest
 Encoding: UTF-8
 Config/roxygen2/version: 8.0.0
