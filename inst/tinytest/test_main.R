@@ -14,7 +14,7 @@ r <- json_out(c("capabilities", "--json"))
 rctl:::set_has_pkg(old)
 expect_equal(r$code, 0L)
 expect_true(r$doc$ok)
-expect_false(r$doc$result$subsystems$rdpkg$present)
+expect_false(r$doc$result$subsystems$pkgstate$present)
 expect_false(r$doc$result$subsystems$rsystemd$present)
 expect_true("packages.installed" %in% unlist(r$doc$result$operations))
 
@@ -27,7 +27,7 @@ rctl:::set_has_pkg(old)
 expect_equal(r$code, 3L)
 expect_false(r$doc$ok)
 expect_equal(r$doc$error$class[[1L]], "rctl_environment_error")
-expect_equal(r$doc$error$resource, "rdpkg")
+expect_equal(r$doc$error$resource, "pkgstate")
 
 # --- usage errors: exit 2 with an envelope, stdout never empty ---
 
@@ -68,13 +68,13 @@ expect_equal(r$code, 2L)
 # --- Live smoke tests ---
 
 if (at_home()) {
-    if (!requireNamespace("rdpkg", quietly = TRUE) ||
+    if (!requireNamespace("pkgstate", quietly = TRUE) ||
         !requireNamespace("rsystemd", quietly = TRUE)) {
-        exit_file("live smoke needs rdpkg + rsystemd installed")
+        exit_file("live smoke needs pkgstate + rsystemd installed")
     }
     r <- json_out(c("capabilities", "--json"))
     expect_equal(r$code, 0L)
-    expect_true(r$doc$result$subsystems$rdpkg$present)
+    expect_true(r$doc$result$subsystems$pkgstate$present)
     expect_true(r$doc$result$subsystems$rsystemd$present)
 
     r <- json_out(c("packages", "installed", "--json"))
@@ -92,5 +92,5 @@ if (at_home()) {
 
     r <- json_out(c("packages", "policy", "no-such-pkg-xyzzy", "--json"))
     expect_equal(r$code, 1L)
-    expect_equal(r$doc$error$class[[1L]], "rdpkg_unknown_package")
+    expect_equal(r$doc$error$class[[1L]], "pkgstate_unknown_package")
 }

@@ -138,7 +138,7 @@ envelope_error <- function(operation, cond) {
 
 ## The retryability table: agents branch on class, never message. Classes
 ## absent from this table are not retryable.
-RETRYABLE_CLASSES <- c("rdpkg_cache_race")
+RETRYABLE_CLASSES <- c("pkgstate_cache_race")
 
 is_retryable <- function(cond) {
     any(class(cond) %in% RETRYABLE_CLASSES)

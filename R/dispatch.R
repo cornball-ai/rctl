@@ -29,33 +29,33 @@ operations <- function() {
     mut <- function(pkg, fn) list(pkg = pkg, mutates = TRUE, fn = fn)
     list(
          "capabilities" = ro(NA_character_, op_capabilities),
-         "packages.installed" = ro("rdpkg",
-                                   function(pos, opts) rdpkg::dpkg_installed()),
-         "packages.upgradable" = ro("rdpkg",
-                                    function(pos, opts) rdpkg::apt_upgradable()),
-         "packages.origins" = ro("rdpkg", function(pos, opts) {
+         "packages.installed" = ro("pkgstate",
+                                   function(pos, opts) pkgstate::dpkg_installed()),
+         "packages.upgradable" = ro("pkgstate",
+                                    function(pos, opts) pkgstate::apt_upgradable()),
+         "packages.origins" = ro("pkgstate", function(pos, opts) {
         if (length(pos) == 0L) {
             stop_rctl("packages.origins needs package names",
                       class = "rctl_usage_error")
         }
-        rdpkg::apt_origins(pos)
+        pkgstate::apt_origins(pos)
     }),
-         "packages.candidates" = ro("rdpkg", function(pos, opts) {
+         "packages.candidates" = ro("pkgstate", function(pos, opts) {
         if (length(pos) == 0L) {
             stop_rctl("packages.candidates needs package names",
                       class = "rctl_usage_error")
         }
-        rdpkg::apt_candidates(pos)
+        pkgstate::apt_candidates(pos)
     }),
-         "packages.policy" = ro("rdpkg", function(pos, opts) {
+         "packages.policy" = ro("pkgstate", function(pos, opts) {
         if (length(pos) != 1L) {
             stop_rctl("packages.policy needs exactly one package",
                       class = "rctl_usage_error")
         }
-        rdpkg::apt_policy(pos)
+        pkgstate::apt_policy(pos)
     }),
-         "packages.cache-timestamps" = ro("rdpkg",
-            function(pos, opts) rdpkg::apt_cache_timestamps()),
+         "packages.cache-timestamps" = ro("pkgstate",
+            function(pos, opts) pkgstate::apt_cache_timestamps()),
          "services.units" = ro("rsystemd", function(pos, opts) {
         rsystemd::systemd_units(pattern = if (length(pos) > 0L) {
                 pos[1L]
@@ -152,7 +152,7 @@ mutation_handler <- function(verb, op) {
 
 op_capabilities <- function(pos, opts) {
     probe <- has_pkg()
-    subs <- lapply(c(rdpkg = "rdpkg", rsystemd = "rsystemd"), function(p) {
+    subs <- lapply(c(pkgstate = "pkgstate", rsystemd = "rsystemd"), function(p) {
         if (probe(p)) {
             list(present = TRUE,
                  version = as.character(utils::packageVersion(p)))

@@ -112,7 +112,7 @@ expect_false(d$error$retryable)
 expect_null(d$error$resource)
 
 race <- structure(
-    class = c("rdpkg_cache_race", "rdpkg_error", "runix_error", "error",
+    class = c("pkgstate_cache_race", "pkgstate_error", "runix_error", "error",
         "condition"),
     list(message = "cache changed", call = NULL)
 )
@@ -122,10 +122,10 @@ expect_true(d$error$retryable)
 withres <- structure(
     class = c("rctl_environment_error", "rctl_error", "runix_error",
         "error", "condition"),
-    list(message = "missing", call = NULL, resource = "rdpkg")
+    list(message = "missing", call = NULL, resource = "pkgstate")
 )
 d <- dec(rctl:::envelope_error("capabilities", withres))
-expect_equal(d$error$resource, "rdpkg")
+expect_equal(d$error$resource, "pkgstate")
 
 # single-element class vectors stay JSON arrays
 one <- structure(class = c("weird_error", "error", "condition"),
