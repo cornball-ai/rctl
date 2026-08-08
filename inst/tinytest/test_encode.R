@@ -111,13 +111,20 @@ expect_equal(d$error$class[[3L]], "runix_error")
 expect_false(d$error$retryable)
 expect_null(d$error$resource)
 
-race <- structure(
-    class = c("pkgstate_cache_race", "pkgstate_error", "runix_error", "error",
-        "condition"),
-    list(message = "cache changed", call = NULL)
-)
-d <- dec(rctl:::envelope_error("packages.origins", race))
-expect_true(d$error$retryable)
+## Retryability now comes from the shared runix registry, populated by each
+## subsystem's .onLoad. A pkgstate_cache_race is only ever raised because
+## pkgstate ran, so loading it here mirrors the real dispatch path (dispatch
+## requires the subsystem package before its condition can arise) -- not a
+## particular test file order.
+if (requireNamespace("pkgstate", quietly = TRUE)) {
+    race <- structure(
+        class = c("pkgstate_cache_race", "pkgstate_error", "runix_error",
+            "error", "condition"),
+        list(message = "cache changed", call = NULL)
+    )
+    d <- dec(rctl:::envelope_error("packages.origins", race))
+    expect_true(d$error$retryable)
+}
 
 withres <- structure(
     class = c("rctl_environment_error", "rctl_error", "runix_error",
