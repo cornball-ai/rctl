@@ -1,0 +1,7 @@
+#!/usr/bin/Rscript --vanilla
+## Rscript fallback launcher: byte-identical output to the littler
+## launcher by construction — both call rctl::main(). --vanilla is
+## hardcoded (env shebangs cannot pass flags) so no profile can pollute
+## machine-mode stdout; littler skips profiles by default.
+status <- rctl::main(commandArgs(trailingOnly = TRUE))
+quit(status = status, save = "no")

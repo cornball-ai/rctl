@@ -1,3 +1,3 @@
-## export all regularly named functions
-## (but allow for private functions whose name starts with a dot).name <- function(...)
-exportPattern("^[[:alpha:]]+")
+# tinyrox says don't edit this manually, but it can't stop you!
+
+export(main)
