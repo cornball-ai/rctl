@@ -14,5 +14,6 @@
   frames as row arrays, `POSIXct` as RFC 3339, `NA` as `null`, classed result
   objects serialized as their content, big whole doubles emitted exact).
 * Added a Linux CI workflow (install, tests, `R CMD check`, and a real
-  `rctl capabilities --json` envelope) with the janssonr dependency installed
-  from the cornball drat.
+  `rctl capabilities --json` envelope) with janssonr installed as the
+  `r-cornball-janssonr` apt binary from the cornball apt repository -- no
+  compiler or `libjansson-dev` needed at install time.

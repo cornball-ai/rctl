@@ -8,12 +8,13 @@ env:
   _R_CHECK_FORCE_SUGGESTS_: "false"
 
 jobs:
-  # rctl is a CLI over the Runix subsystem packages. This builds the whole
-  # stack on Linux -- janssonr from the cornball drat, the sibling packages from
-  # their public repos -- so the full test suite runs with the subsystems
-  # present, then checks a real capabilities envelope and R CMD check.
+  # rctl is a CLI over the Runix subsystem packages. This builds the whole stack
+  # on Linux (noble) -- janssonr as an apt binary from the cornball apt repo, the
+  # sibling packages from their public repos -- so the full test suite runs with
+  # the subsystems present, then checks a real capabilities envelope and R CMD
+  # check. Pinned to ubuntu-24.04 to match the janssonr repo's noble suite.
   linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
 
@@ -22,16 +23,22 @@ jobs:
         with:
           backend: RAPT
 
-      - name: System dep for janssonr
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libjansson-dev
-
-      # janssonr is not on CRAN/r2u; install the versioned source tarball from
-      # the cornball drat. download.packages + R CMD INSTALL bypasses the RAPT
-      # install.packages shim and pins to the drat's version.
-      - name: Install janssonr from the cornball drat (source)
+      # janssonr ships as an apt binary from the cornball apt repository (rapt's
+      # pattern, unsigned -> Trusted: yes). CI and target machines get the
+      # Jansson runtime via Depends (libjansson4) -- no libjansson-dev, no
+      # compiler. The package lands in /usr/lib/R/site-library like any r-cran deb.
+      - name: Install janssonr from the cornball apt repository
         run: |
-          Rscript -e 'download.packages("janssonr", ".", repos = "https://cornball-ai.github.io/drat", type = "source")'
-          R CMD INSTALL janssonr_*.tar.gz
+          sudo tee /etc/apt/sources.list.d/janssonr.sources > /dev/null <<'EOF'
+          Types: deb
+          URIs: https://cornball-ai.github.io/janssonr
+          Suites: noble
+          Components: main
+          Trusted: yes
+          Enabled: yes
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y r-cornball-janssonr
 
       # The Runix sibling packages are not yet on CRAN/r2u; install runix
       # (Imports), then the subsystems (Suggests) so test_mutations and the
