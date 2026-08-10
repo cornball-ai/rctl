@@ -47,18 +47,23 @@ fix_utf8 <- function(x) {
 ## frame column such a big value is always a refusal.
 BIG <- 1e15
 
-## Normalize one atomic vector to a janssonr-safe value: NA -> NULL, a named
-## atomic -> a JSON object (named list), a clean length-1 -> a scalar, and a
-## clean multi-element or empty vector -> left as-is (janssonr arrays it, or
-## emits []). Class-bearing inputs (factor/POSIXct/AsIs) and UTF-8 are already
-## resolved by prepare() before this is reached.
+## A JSON object needs unique, non-empty keys; a value that would produce
+## duplicate or empty keys is refused rather than silently collapsed.
+.reject_bad_names <- function(nm) {
+    if (anyDuplicated(nm) != 0L || any(!nzchar(nm)) || anyNA(nm)) {
+        stop_rctl("cannot encode a JSON object with duplicate or empty keys")
+    }
+}
+
+## Normalize one UNNAMED atomic vector to a janssonr-safe value: NA -> NULL, a
+## length-1 -> a scalar, and a clean multi-element or empty vector -> left as-is
+## (janssonr arrays it, or emits []). A named atomic is refused -- a JSON object
+## is expressed as a named list, not a named vector. Classes, non-finite
+## numbers, and UTF-8 are already resolved by prepare() before this is reached.
 .atomic_json <- function(x) {
-    nm <- names(x)
-    if (!is.null(nm)) {
-        out <- lapply(seq_along(x),
-                      function(i) if (is.na(x[[i]])) NULL else x[[i]])
-        names(out) <- nm
-        return(out)
+    if (!is.null(names(x))) {
+        stop_rctl("cannot encode a named atomic vector; ",
+                  "use a named list for a JSON object")
     }
     if (length(x) == 1L) {
         if (is.na(x)) {
@@ -92,36 +97,46 @@ BIG <- 1e15
     })
 }
 
-## Normalize an arbitrary R value into a janssonr-safe structure. Recursive:
-## classes are resolved to their JSON meaning, NA becomes NULL, and containers
-## become named/unnamed lists.
+## Normalize an R value into a janssonr-safe structure, or refuse it. The
+## encoder maps a fixed, strict set of shapes -- POSIXct timestamps, data
+## frames, lists (incl. classed result objects, serialized as their content),
+## and unnamed atomic vectors (with NA -> null) -- and fails closed on anything
+## else (factors and other classed atomics, named atomics, POSIXlt, AsIs
+## vectors, non-finite numbers, duplicate/empty object keys) rather than
+## reinterpret it. Both the encoder and every consumer are janssonr, so the wire
+## shape stays tight.
 prepare <- function(x, in_frame = FALSE) {
-    ## never trust an incoming verbatim class (none is produced any more)
-    if (inherits(x, "json")) {
-        x <- unclass(x)
-    }
-    ## AsIs (the error envelope's class vector): force a JSON array, never an
-    ## unboxed scalar. Strip AsIs and recurse element-wise as a list.
-    if (inherits(x, "AsIs")) {
-        x <- unclass(x)
-        if (!is.list(x)) {
-            x <- as.list(x)
-        }
-        return(lapply(x, prepare, in_frame = in_frame))
-    }
     if (inherits(x, "POSIXct")) {
         return(prepare(rfc3339(x), in_frame = in_frame))
     }
-    if (is.factor(x)) {
-        return(prepare(as.character(x), in_frame = in_frame))
+    ## POSIXlt is a list under the hood; refuse it rather than walk its
+    ## broken-down-time fields (callers pass POSIXct).
+    if (inherits(x, "POSIXlt")) {
+        stop_rctl("cannot encode a POSIXlt; pass a POSIXct")
     }
     if (is.data.frame(x)) {
         return(.df_rows(x))
     }
+    ## a classed ATOMIC (factor, AsIs vector, an old json verbatim marker, a
+    ## custom scalar class) is refused -- its class reinterprets the storage.
+    ## A classed LIST (a runix_result and friends) carries structured data, so
+    ## it is unclassed and serialized as its underlying list.
+    if (is.atomic(x) && !is.null(attr(x, "class"))) {
+        stop_rctl("cannot encode a value of class '",
+                  paste(class(x), collapse = "/"), "' in a JSON envelope")
+    }
     if (is.list(x)) {
+        x <- unclass(x)
+        if (!is.null(names(x))) {
+            .reject_bad_names(names(x))
+        }
         return(lapply(x, prepare, in_frame = in_frame))
     }
     if (is.double(x)) {
+        if (any(is.nan(x)) || any(is.infinite(x))) {
+            stop_rctl("cannot encode a non-finite number (NaN/Inf) ",
+                      "in a JSON envelope")
+        }
         big <- !is.na(x) & abs(x) >= BIG
         if (any(big)) {
             if (in_frame) {
@@ -169,10 +184,11 @@ envelope_error <- function(operation, cond) {
     } else {
         as.character(cond$resource)[1L]
     }
-    ## I() keeps a single-element class vector a JSON array; prepare() turns
-    ## every field (incl. NA resource -> null, invalid UTF-8 in the message)
-    ## into janssonr-safe form when the whole body is encoded.
-    body <- list(class = I(setdiff(class(cond), c("error", "condition"))),
+    ## class is an explicit list so it stays a JSON array even with one element
+    ## (no I()/AsIs, which prepare() refuses); prepare() turns every field
+    ## (incl. NA resource -> null, invalid UTF-8 in the message) into
+    ## janssonr-safe form when the whole body is encoded.
+    body <- list(class = as.list(setdiff(class(cond), c("error", "condition"))),
                  message = conditionMessage(cond),
                  retryable = is_retryable(cond), resource = resource)
     for (f in ERROR_PASSTHROUGH) {

@@ -163,9 +163,10 @@ expect_equal(enc(list(a = 1L, b = "x", t = TRUE)), paste0(
     '{"schema_version":1,"operation":"t","ok":true,',
     '"result":{"a":1,"b":"x","t":true}}\n'))
 
-# --- No verbatim path exists: an incoming json-class value is re-encoded as a
-# --- plain escaped string, never injected as raw JSON. janssonr has no verbatim
-# --- mechanism at all, so this is structural, not a filter. ---
+# --- No verbatim path, and unknown classed values are refused: a json-class
+# --- value (rctl's old verbatim marker) can never be injected as raw JSON --
+# --- the strict encoder refuses it outright rather than reinterpret it. ---
 
-s <- enc(list(x = structure('{"evil":true}', class = "json")))
-expect_true(grepl('"x":"{\\"evil\\":true}"', s, fixed = TRUE))
+e <- tryCatch(enc(list(x = structure('{"evil":true}', class = "json"))),
+    error = identity)
+expect_inherits(e, "rctl_error")
