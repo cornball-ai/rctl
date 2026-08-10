@@ -9,8 +9,7 @@ options(rsystemd.poll_interval = 0)
 
 json_out <- function(argv) {
     out <- capture.output(code <- main(argv))
-    list(code = code, doc = jsonlite::fromJSON(paste(out, collapse = ""),
-        simplifyVector = FALSE))
+    list(code = code, doc = janssonr::from_json(paste(out, collapse = "")))
 }
 
 `%||%` <- function(a, b) if (is.null(a) || length(a) == 0L) b else a

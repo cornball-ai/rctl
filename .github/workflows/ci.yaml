@@ -1,0 +1,72 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+env:
+  _R_CHECK_FORCE_SUGGESTS_: "false"
+
+jobs:
+  # rctl is a CLI over the Runix subsystem packages. This builds the whole stack
+  # on Linux (noble) -- janssonr as an apt binary from the cornball apt repo, the
+  # sibling packages from their public repos -- so the full test suite runs with
+  # the subsystems present, then checks a real capabilities envelope and R CMD
+  # check. Pinned to ubuntu-24.04 to match the janssonr repo's noble suite.
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup r-ci
+        uses: eddelbuettel/github-actions/r-ci@master
+        with:
+          backend: RAPT
+
+      # janssonr ships as an apt binary from the cornball apt repository (rapt's
+      # pattern, unsigned -> Trusted: yes). CI and target machines get the
+      # Jansson runtime via Depends (libjansson4) -- no libjansson-dev, no
+      # compiler. The package lands in /usr/lib/R/site-library like any r-cran deb.
+      - name: Install janssonr from the cornball apt repository
+        run: |
+          sudo tee /etc/apt/sources.list.d/janssonr.sources > /dev/null <<'EOF'
+          Types: deb
+          URIs: https://cornball-ai.github.io/janssonr
+          Suites: noble
+          Components: main
+          Trusted: yes
+          Enabled: yes
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y r-cornball-janssonr
+
+      # The Runix sibling packages are not yet on CRAN/r2u; install runix
+      # (Imports), then the subsystems (Suggests) so test_mutations and the
+      # capability tests run with them present rather than skipping.
+      - name: Install the Runix sibling packages (public repos)
+        run: |
+          for pkg in runix pkgstate rsystemd; do
+            git clone --depth 1 "https://github.com/cornball-ai/$pkg.git" "${RUNNER_TEMP}/$pkg"
+            R CMD INSTALL "${RUNNER_TEMP}/$pkg"
+          done
+
+      - name: R dependencies (littler, tinytest)
+        run: ./run.sh install_deps
+
+      - name: Install rctl
+        run: R CMD INSTALL .
+
+      - name: Tests (full suite, subsystems present)
+        run: |
+          Rscript -e 'r <- tinytest::test_package("rctl"); n <- sum(!vapply(r, isTRUE, logical(1))); cat(length(r), "checks,", n, "failures\n"); quit(status = as.integer(n > 0))'
+
+      # A real machine-mode envelope end to end: one compact versioned JSON
+      # document that parses back through janssonr and carries the audit block.
+      - name: Real capabilities --json envelope
+        run: |
+          Rscript -e 'invisible(rctl::main(c("capabilities", "--json")))' > "${RUNNER_TEMP}/cap.json"
+          cat "${RUNNER_TEMP}/cap.json"
+          Rscript -e 'j <- janssonr::from_json(paste(readLines("'"${RUNNER_TEMP}"'/cap.json"), collapse = "")); stopifnot(isTRUE(j$ok), identical(j$schema_version, 1L), identical(j$operation, "capabilities"), !is.null(j$result$audit)); cat("capabilities envelope OK\n")'
+
+      - name: R CMD check (CRAN cleanliness)
+        run: ./run.sh run_tests
