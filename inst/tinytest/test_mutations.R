@@ -75,6 +75,21 @@ expect_false(is.null(r$doc$result$audit))
 expect_true(is.logical(unlist(r$doc$result$audit$system_durable_audit)))
 # a system-scope mutation's record scope is one of the authority-matrix values
 expect_true(unlist(r$doc$result$audit$audit_scope) %in% c("system", "caller"))
+# the two fields are derived from one probe, so they can never contradict:
+# system-durable iff the record would be written under the "system" scope.
+adurable <- isTRUE(unlist(r$doc$result$audit$system_durable_audit))
+ascope <- unlist(r$doc$result$audit$audit_scope)
+expect_equal(adurable, identical(ascope, "system"))
+
+# forcing the durable branch must report "system" scope, never a stale "caller".
+# (Regression: independent probe + audit_scope_for calls once reported
+# {system_durable_audit = TRUE, audit_scope = "caller"} on a broker-backed host.)
+orig_sda <- runix::system_durable_audit_available
+assignInNamespace("system_durable_audit_available", function(...) TRUE, "runix")
+cap_durable <- rctl:::audit_capability()
+assignInNamespace("system_durable_audit_available", orig_sda, "runix")
+expect_true(isTRUE(cap_durable$system_durable_audit))
+expect_equal(cap_durable$audit_scope, "system")
 
 # --- restart success: runix_result flows through the envelope unchanged --
 

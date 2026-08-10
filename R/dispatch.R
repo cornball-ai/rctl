@@ -178,11 +178,18 @@ op_capabilities <- function(pos, opts) {
 ## system-scope mutations that would only be caller-durably audited. No prompt,
 ## no mutation. Falls back gracefully if the runix helpers are unavailable.
 audit_capability <- function() {
-    tryCatch(
-             list(system_durable_audit = runix::system_durable_audit_available(),
-                  audit_scope = runix::audit_scope_for("system")),
-             error = function(e) list(system_durable_audit = FALSE,
-                                      audit_scope = NA_character_))
+    tryCatch({
+        ## Both fields come from ONE probe so they cannot contradict. If a
+        ## system-scope mutation's audit would be system-durable here (root, or a
+        ## reachable root-authenticated broker), its record is written under the
+        ## "system" scope; otherwise report the honest fallback scope. Deriving
+        ## audit_scope from the same snapshot rules out the nonsensical pair
+        ## {system_durable_audit = TRUE, audit_scope = "caller"}.
+        durable <- runix::system_durable_audit_available()
+        scope <- if (isTRUE(durable)) "system" else runix::audit_scope_for("system")
+        list(system_durable_audit = durable, audit_scope = scope)
+    }, error = function(e) list(system_durable_audit = FALSE,
+                                audit_scope = NA_character_))
 }
 
 dispatch <- function(operation, pos, opts) {
