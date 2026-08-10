@@ -1,7 +1,7 @@
 Package: rctl
 Type: Package
 Title: Runix Command-Line Interface
-Version: 0.0.1.4
+Version: 0.0.1.5
 Date: 2026-08-08
 Authors@R: c(
     person("Troy", "Hernandez", role = c("aut", "cre"), email = "troy@cornball.ai",
@@ -16,7 +16,7 @@ Description: The Runix command-line interface: a machine-drivable CLI over
     succeeds even where they are absent.
 License: MIT + file LICENSE
 OS_type: unix
-Imports: yyjsonr (>= 0.1.22), runix
+Imports: yyjsonr (>= 0.1.22), runix (>= 0.0.1.6)
 Suggests: jsonlite, littler, pkgstate, rsystemd, tinytest
 Encoding: UTF-8
 Config/roxygen2/version: 8.0.0
