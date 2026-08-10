@@ -3,8 +3,7 @@
 
 json_out <- function(argv) {
     out <- capture.output(code <- main(argv))
-    list(code = code, doc = jsonlite::fromJSON(paste(out, collapse = ""),
-        simplifyVector = FALSE))
+    list(code = code, doc = janssonr::from_json(paste(out, collapse = "")))
 }
 
 # --- capabilities succeeds and exits 0 even with all subsystems absent ---

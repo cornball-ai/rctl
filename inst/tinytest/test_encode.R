@@ -2,7 +2,7 @@
 # pins is asserted here against the emitted JSON text.
 
 enc <- function(x) rctl:::envelope_success("t", x)
-dec <- function(s) jsonlite::fromJSON(s, simplifyVector = FALSE)
+dec <- function(s) janssonr::from_json(s)
 
 # --- Envelope shape: single compact document, trailing newline ---
 
@@ -80,10 +80,11 @@ expect_false(grepl("e+", s, fixed = TRUE))
 s <- enc(list(big = 2^50))
 expect_true(grepl('"big":1125899906842624', s, fixed = TRUE))
 
-# small doubles stay plain numbers (yyjson marks doubles with .0,
-# type-faithful and deterministic); integers stay bare
+# doubles are bare numbers: janssonr writes a whole double losslessly as a bare
+# integer literal (no .0), a fractional one as itself; integers stay bare
 s <- enc(list(m = 22671360, f = 0.5, n = 42L))
-expect_true(grepl('"m":22671360.0', s, fixed = TRUE))
+expect_true(grepl('"m":22671360', s, fixed = TRUE))
+expect_false(grepl('"m":22671360.0', s, fixed = TRUE))
 expect_true(grepl('"f":0.5', s, fixed = TRUE))
 expect_true(grepl('"n":42', s, fixed = TRUE))
 expect_false(grepl("e+", s, fixed = TRUE))
@@ -162,11 +163,9 @@ expect_equal(enc(list(a = 1L, b = "x", t = TRUE)), paste0(
     '{"schema_version":1,"operation":"t","ok":true,',
     '"result":{"a":1,"b":"x","t":true}}\n'))
 
-# --- json-verbatim smuggling is neutralized: incoming json-class values
-# --- are re-encoded as plain strings; only the internal validated
-# --- numeric token may pass verbatim ---
+# --- No verbatim path exists: an incoming json-class value is re-encoded as a
+# --- plain escaped string, never injected as raw JSON. janssonr has no verbatim
+# --- mechanism at all, so this is structural, not a filter. ---
 
 s <- enc(list(x = structure('{"evil":true}', class = "json")))
 expect_true(grepl('"x":"{\\"evil\\":true}"', s, fixed = TRUE))
-e <- tryCatch(rctl:::num_token(Inf), error = identity)
-expect_inherits(e, "rctl_error")
