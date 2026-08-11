@@ -90,6 +90,20 @@ assignInNamespace("system_durable_audit_available", orig_sda, "runix")
 expect_true(isTRUE(cap_durable$system_durable_audit))
 expect_equal(cap_durable$audit_scope, "system")
 
+# --- services.info surfaces rsystemd's full record unchanged, including
+# --- result + exec_main_status (the exited-branch evidence a fleet reader
+# --- needs); guards against a field whitelist creeping in on this seam ---
+old <- rsystemd:::set_runner(function(cmd, args) list(status = 0L, output = c(
+    "Id=x.service", "LoadState=loaded", "ActiveState=failed",
+    "SubState=failed", "Result=exit-code", "ExecMainStatus=1")))
+r <- json_out(c("services", "info", "x.service", "--json", "--scope=user"))
+rsystemd:::set_runner(old)
+expect_equal(r$code, 0L)
+expect_true(r$doc$ok)
+expect_equal(r$doc$result$active_state, "failed")
+expect_equal(r$doc$result$result, "exit-code")
+expect_equal(r$doc$result$exec_main_status, 1L)
+
 # --- restart success: runix_result flows through the envelope unchanged --
 
 old <- rsystemd:::set_runner(fake_systemctl(
