@@ -15,7 +15,11 @@ expect_equal(r$code, 0L)
 expect_true(r$doc$ok)
 expect_false(r$doc$result$subsystems$pkgstate$present)
 expect_false(r$doc$result$subsystems$rsystemd$present)
+expect_false(r$doc$result$subsystems$hwstate$present)
 expect_true("packages.installed" %in% unlist(r$doc$result$operations))
+expect_true("host.memory" %in% unlist(r$doc$result$operations))
+# host.* are read-only: none appears among the mutating operations
+expect_false("host.memory" %in% unlist(r$doc$result$mutating_operations))
 
 # --- absent subsystem on a real operation: exit 3, typed envelope,
 # --- resource names the missing package ---
@@ -27,6 +31,14 @@ expect_equal(r$code, 3L)
 expect_false(r$doc$ok)
 expect_equal(r$doc$error$class[[1L]], "rctl_environment_error")
 expect_equal(r$doc$error$resource, "pkgstate")
+
+rctl:::set_has_pkg(function(pkg) FALSE)
+r <- json_out(c("host", "memory", "--json"))
+rctl:::set_has_pkg(old)
+expect_equal(r$code, 3L)
+expect_false(r$doc$ok)
+expect_equal(r$doc$error$class[[1L]], "rctl_environment_error")
+expect_equal(r$doc$error$resource, "hwstate")
 
 # --- usage errors: exit 2 with an envelope, stdout never empty ---
 
@@ -68,13 +80,15 @@ expect_equal(r$code, 2L)
 
 if (at_home()) {
     if (!requireNamespace("pkgstate", quietly = TRUE) ||
-        !requireNamespace("rsystemd", quietly = TRUE)) {
-        exit_file("live smoke needs pkgstate + rsystemd installed")
+        !requireNamespace("rsystemd", quietly = TRUE) ||
+        !requireNamespace("hwstate", quietly = TRUE)) {
+        exit_file("live smoke needs pkgstate + rsystemd + hwstate installed")
     }
     r <- json_out(c("capabilities", "--json"))
     expect_equal(r$code, 0L)
     expect_true(r$doc$result$subsystems$pkgstate$present)
     expect_true(r$doc$result$subsystems$rsystemd$present)
+    expect_true(r$doc$result$subsystems$hwstate$present)
 
     r <- json_out(c("packages", "installed", "--json"))
     expect_equal(r$code, 0L)
@@ -92,4 +106,18 @@ if (at_home()) {
     r <- json_out(c("packages", "policy", "no-such-pkg-xyzzy", "--json"))
     expect_equal(r$code, 1L)
     expect_equal(r$doc$error$class[[1L]], "pkgstate_unknown_package")
+
+    # host.* read surface through the envelope (data frames -> row arrays)
+    r <- json_out(c("host", "memory", "--json"))
+    expect_equal(r$code, 0L)
+    expect_true(r$doc$result[[1L]]$mem_total_bytes > 0)
+
+    r <- json_out(c("host", "conditions", "--json"))
+    expect_equal(r$code, 0L)
+    conds <- vapply(r$doc$result, function(x) x$condition, character(1))
+    expect_true(all(c("MemoryPressure", "DiskPressure") %in% conds))
+
+    r <- json_out(c("host", "processes", "--json"))
+    expect_equal(r$code, 0L)
+    expect_true(length(r$doc$result) > 10L)
 }
