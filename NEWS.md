@@ -1,3 +1,14 @@
+# rctl 0.0.1.7
+
+* Wired the **hwstate** subsystem into the CLI: 12 read-only `host.*` operations
+  covering the host hardware/resource read surface -- `host.memory`, `host.load`,
+  `host.cpu`, `host.processes`, `host.cgroups`, `host.security`, `host.disks`,
+  `host.disk-usage`, `host.disk-health`, `host.thermals`, `host.gpus`, and
+  `host.conditions`. hwstate is a runtime-detected Suggests like the other
+  subsystems, so `capabilities` now reports its presence and version, and
+  `host.*` operations return exit 3 with an `rctl_environment_error` naming
+  `hwstate` when it is absent. No mutations: hwstate is report-only.
+
 # rctl 0.0.1.6
 
 * JSON backend changed from **yyjsonr to janssonr**, aligning rctl with the rest

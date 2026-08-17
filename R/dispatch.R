@@ -84,7 +84,27 @@ operations <- function() {
          "services.enable" = mut("rsystemd", mutation_handler(
                 rsystemd::systemd_enable, "services.enable")),
          "services.disable" = mut("rsystemd", mutation_handler(
-                rsystemd::systemd_disable, "services.disable"))
+                rsystemd::systemd_disable, "services.disable")),
+         "host.memory" = ro("hwstate", function(pos, opts) hwstate::mem_info()),
+         "host.load" = ro("hwstate",
+                          function(pos, opts) hwstate::load_average()),
+         "host.cpu" = ro("hwstate", function(pos, opts) hwstate::cpu_info()),
+         "host.processes" = ro("hwstate",
+                               function(pos, opts) hwstate::processes()),
+         "host.cgroups" = ro("hwstate",
+                             function(pos, opts) hwstate::cgroup_rss()),
+         "host.security" = ro("hwstate",
+                              function(pos, opts) hwstate::proc_security()),
+         "host.disks" = ro("hwstate", function(pos, opts) hwstate::disks()),
+         "host.disk-usage" = ro("hwstate",
+                                function(pos, opts) hwstate::disk_usage()),
+         "host.disk-health" = ro("hwstate",
+                                 function(pos, opts) hwstate::disk_health()),
+         "host.thermals" = ro("hwstate",
+                              function(pos, opts) hwstate::thermals()),
+         "host.gpus" = ro("hwstate", function(pos, opts) hwstate::gpus()),
+         "host.conditions" = ro("hwstate",
+                                function(pos, opts) hwstate::node_conditions())
     )
 }
 
@@ -152,7 +172,8 @@ mutation_handler <- function(verb, op) {
 
 op_capabilities <- function(pos, opts) {
     probe <- has_pkg()
-    subs <- lapply(c(pkgstate = "pkgstate", rsystemd = "rsystemd"), function(p) {
+    subs <- lapply(c(pkgstate = "pkgstate", rsystemd = "rsystemd",
+                     hwstate = "hwstate"), function(p) {
         if (probe(p)) {
             list(present = TRUE,
                  version = as.character(utils::packageVersion(p)))

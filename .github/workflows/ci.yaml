@@ -56,7 +56,7 @@ jobs:
       # capability tests run with them present rather than skipping.
       - name: Install the Runix sibling packages (public repos)
         run: |
-          for pkg in runix pkgstate rsystemd; do
+          for pkg in runix pkgstate rsystemd hwstate; do
             git clone --depth 1 "https://github.com/cornball-ai/$pkg.git" "${RUNNER_TEMP}/$pkg"
             R CMD INSTALL "${RUNNER_TEMP}/$pkg"
           done

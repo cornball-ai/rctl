@@ -1,8 +1,8 @@
 Package: rctl
 Type: Package
 Title: Runix Command-Line Interface
-Version: 0.0.1.6
-Date: 2026-08-10
+Version: 0.0.1.7
+Date: 2026-08-17
 Authors@R: c(
     person("Troy", "Hernandez", role = c("aut", "cre"), email = "troy@cornball.ai",
            comment = c(ORCID = "0009-0005-4248-604X")),
@@ -18,6 +18,6 @@ License: MIT + file LICENSE
 OS_type: unix
 Imports: janssonr (>= 0.0.1.1), runix (>= 0.0.1.6)
 Additional_repositories: https://cornball-ai.github.io/drat
-Suggests: littler, pkgstate, rsystemd, tinytest
+Suggests: hwstate, littler, pkgstate, rsystemd, tinytest
 Encoding: UTF-8
 Config/roxygen2/version: 8.0.0
