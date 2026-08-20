@@ -104,7 +104,46 @@ operations <- function() {
                               function(pos, opts) hwstate::thermals()),
          "host.gpus" = ro("hwstate", function(pos, opts) hwstate::gpus()),
          "host.conditions" = ro("hwstate",
-                                function(pos, opts) hwstate::node_conditions())
+                                function(pos, opts) hwstate::node_conditions()),
+         ## apt package-state mutations over pkgops (the unprivileged issuer).
+         ## Each verb has a read-only `apt.<verb>-preview` (advisory, no intent)
+         ## and a mutating `apt.<verb>` (preview-then-commit, machine-mode auth).
+         "apt.install-preview" = ro("pkgops",
+                                    apt_preview_op("apt.install-preview", "apt_install_preview", TRUE)),
+         "apt.install" = mut("pkgops",
+                             apt_commit_op("apt.install", "apt_install_preview", "apt_install", TRUE)),
+         "apt.remove-preview" = ro("pkgops",
+                                   apt_preview_op("apt.remove-preview", "apt_remove_preview", TRUE)),
+         "apt.remove" = mut("pkgops",
+                            apt_commit_op("apt.remove", "apt_remove_preview", "apt_remove", TRUE)),
+         "apt.purge-preview" = ro("pkgops",
+                                  apt_preview_op("apt.purge-preview", "apt_purge_preview", TRUE)),
+         "apt.purge" = mut("pkgops",
+                           apt_commit_op("apt.purge", "apt_purge_preview", "apt_purge", TRUE)),
+         "apt.hold-preview" = ro("pkgops",
+                                 apt_preview_op("apt.hold-preview", "apt_hold_preview", TRUE)),
+         "apt.hold" = mut("pkgops",
+                          apt_commit_op("apt.hold", "apt_hold_preview", "apt_hold", TRUE)),
+         "apt.unhold-preview" = ro("pkgops",
+                                   apt_preview_op("apt.unhold-preview", "apt_unhold_preview", TRUE)),
+         "apt.unhold" = mut("pkgops",
+                            apt_commit_op("apt.unhold", "apt_unhold_preview", "apt_unhold", TRUE)),
+         "apt.update-preview" = ro("pkgops",
+                                   apt_preview_op("apt.update-preview", "apt_update_preview", FALSE)),
+         "apt.update" = mut("pkgops",
+                            apt_commit_op("apt.update", "apt_update_preview", "apt_update", FALSE)),
+         "apt.upgrade-preview" = ro("pkgops",
+                                    apt_preview_op("apt.upgrade-preview", "apt_upgrade_preview", FALSE)),
+         "apt.upgrade" = mut("pkgops",
+                             apt_commit_op("apt.upgrade", "apt_upgrade_preview", "apt_upgrade", FALSE)),
+         "apt.dist-upgrade-preview" = ro("pkgops",
+            apt_preview_op("apt.dist-upgrade-preview", "apt_dist_upgrade_preview", FALSE)),
+         "apt.dist-upgrade" = mut("pkgops",
+                                  apt_commit_op("apt.dist-upgrade", "apt_dist_upgrade_preview", "apt_dist_upgrade", FALSE)),
+         "apt.configure-preview" = ro("pkgops",
+                                      apt_preview_op("apt.configure-preview", "apt_configure_preview", FALSE)),
+         "apt.configure" = mut("pkgops",
+                               apt_commit_op("apt.configure", "apt_configure_preview", "apt_configure", FALSE))
     )
 }
 
@@ -155,6 +194,20 @@ one_unit <- function(pos, op) {
     pos
 }
 
+## Apt arity guard: target verbs (install/remove/purge/hold/unhold) need at least
+## one package; the whole-system / nullary verbs (update/upgrade/dist_upgrade/
+## configure) take none and reject any. Returns the positional vector unchanged
+## for the handler to forward.
+apt_targets <- function(pos, targets, op) {
+    if (targets && length(pos) == 0L) {
+        stop_rctl(op, " needs at least one package", class = "rctl_usage_error")
+    }
+    if (!targets && length(pos) > 0L) {
+        stop_rctl(op, " takes no package arguments", class = "rctl_usage_error")
+    }
+    pos
+}
+
 ## A mutation handler is a thin closure over an rsystemd verb: it maps the
 ## CLI surface (positional unit, --scope, --timeout, --preview) onto the
 ## verb's arguments and returns whatever the verb returns / raises. No
@@ -170,10 +223,53 @@ mutation_handler <- function(verb, op) {
     }
 }
 
+## Apt handlers over pkgops. Unlike mutation_handler, these deliberately do NOT
+## force the subsystem at operations()-build time: the pkgops functions are
+## resolved lazily by name inside the returned closure (getExportedValue), so
+## operations() and `capabilities` still build when pkgops (a Suggests) is
+## absent, as the DESCRIPTION promises. Only the string names are forced. A
+## handler runs solely after dispatch()'s has_pkg("pkgops") gate has passed.
+apt_preview_op <- function(op, preview_name, targets) {
+    force(op)
+    force(preview_name)
+    force(targets)
+    function(pos, opts) {
+        pos <- apt_targets(pos, targets, op)
+        do.call(getExportedValue("pkgops", preview_name),
+            if (targets) list(pos) else list())
+    }
+}
+
+## The commit handler previews then commits that advisory. --preview (rctl's
+## system-wide dry-run flag) returns the advisory and opens no intent, so
+## `apt install foo --preview` never mutates. Authorization is always machine
+## mode (interactive = FALSE): rctl runs non-interactively with no polkit agent,
+## so a denial or an approval challenge surfaces as a durably-audited terminal
+## refusal, never a prompt.
+apt_commit_op <- function(op, preview_name, commit_name, targets) {
+    force(op)
+    force(preview_name)
+    force(commit_name)
+    force(targets)
+    function(pos, opts) {
+        pos <- apt_targets(pos, targets, op)
+        p <- do.call(getExportedValue("pkgops", preview_name),
+            if (targets) list(pos) else list())
+        if (isTRUE(opts[["preview"]])) {
+            return(p)
+        }
+        getExportedValue("pkgops", commit_name)(
+            p,
+            lock_timeout = opt_num(opts, "lock-timeout", 0),
+            deadline_ms = opt_int(opts, "deadline-ms", 120000L),
+            interactive = FALSE)
+    }
+}
+
 op_capabilities <- function(pos, opts) {
     probe <- has_pkg()
     subs <- lapply(c(pkgstate = "pkgstate", rsystemd = "rsystemd",
-                     hwstate = "hwstate"), function(p) {
+                     hwstate = "hwstate", pkgops = "pkgops"), function(p) {
         if (probe(p)) {
             list(present = TRUE,
                  version = as.character(utils::packageVersion(p)))
