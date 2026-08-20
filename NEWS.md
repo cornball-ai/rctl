@@ -1,3 +1,19 @@
+# rctl 0.0.1.8
+
+* Wired the **pkgops** apt package-state mutation surface into the CLI: nine
+  read-only `apt.<verb>-preview` operations (an advisory `pkgops_preview`, opening
+  no intent) and nine mutating `apt.<verb>` operations (`install`, `remove`,
+  `purge`, `hold`, `unhold`, `update`, `upgrade`, `dist-upgrade`, `configure`),
+  each previewing then committing through the pkgops issuer. Target verbs take
+  package names; the whole-system verbs take none. `--preview` returns the
+  advisory and opens no intent.
+* Authorization is always machine mode: `apt.<verb>` commits with
+  `interactive = FALSE`, so a polkit denial or approval challenge surfaces as a
+  terminal exit-1 envelope carrying the condition class, never a prompt.
+* pkgops is a runtime-detected Suggests like the other subsystems, so
+  `capabilities` reports its presence and version, and error envelopes now carry
+  pkgops's `verb`/`plan_hash`/`status`/`effect_issued`/`detail` fields.
+
 # rctl 0.0.1.7
 
 * Wired the **hwstate** subsystem into the CLI: 12 read-only `host.*` operations
