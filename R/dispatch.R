@@ -109,41 +109,41 @@ operations <- function() {
          ## Each verb has a read-only `apt.<verb>-preview` (advisory, no intent)
          ## and a mutating `apt.<verb>` (preview-then-commit, machine-mode auth).
          "apt.install-preview" = ro("pkgops",
-                apt_preview_op("apt.install-preview", "apt_install_preview", TRUE)),
+                                    apt_preview_op("apt.install-preview", "apt_install_preview", TRUE)),
          "apt.install" = mut("pkgops",
-                apt_commit_op("apt.install", "apt_install_preview", "apt_install", TRUE)),
+                             apt_commit_op("apt.install", "apt_install_preview", "apt_install", TRUE)),
          "apt.remove-preview" = ro("pkgops",
-                apt_preview_op("apt.remove-preview", "apt_remove_preview", TRUE)),
+                                   apt_preview_op("apt.remove-preview", "apt_remove_preview", TRUE)),
          "apt.remove" = mut("pkgops",
-                apt_commit_op("apt.remove", "apt_remove_preview", "apt_remove", TRUE)),
+                            apt_commit_op("apt.remove", "apt_remove_preview", "apt_remove", TRUE)),
          "apt.purge-preview" = ro("pkgops",
-                apt_preview_op("apt.purge-preview", "apt_purge_preview", TRUE)),
+                                  apt_preview_op("apt.purge-preview", "apt_purge_preview", TRUE)),
          "apt.purge" = mut("pkgops",
-                apt_commit_op("apt.purge", "apt_purge_preview", "apt_purge", TRUE)),
+                           apt_commit_op("apt.purge", "apt_purge_preview", "apt_purge", TRUE)),
          "apt.hold-preview" = ro("pkgops",
-                apt_preview_op("apt.hold-preview", "apt_hold_preview", TRUE)),
+                                 apt_preview_op("apt.hold-preview", "apt_hold_preview", TRUE)),
          "apt.hold" = mut("pkgops",
-                apt_commit_op("apt.hold", "apt_hold_preview", "apt_hold", TRUE)),
+                          apt_commit_op("apt.hold", "apt_hold_preview", "apt_hold", TRUE)),
          "apt.unhold-preview" = ro("pkgops",
-                apt_preview_op("apt.unhold-preview", "apt_unhold_preview", TRUE)),
+                                   apt_preview_op("apt.unhold-preview", "apt_unhold_preview", TRUE)),
          "apt.unhold" = mut("pkgops",
-                apt_commit_op("apt.unhold", "apt_unhold_preview", "apt_unhold", TRUE)),
+                            apt_commit_op("apt.unhold", "apt_unhold_preview", "apt_unhold", TRUE)),
          "apt.update-preview" = ro("pkgops",
-                apt_preview_op("apt.update-preview", "apt_update_preview", FALSE)),
+                                   apt_preview_op("apt.update-preview", "apt_update_preview", FALSE)),
          "apt.update" = mut("pkgops",
-                apt_commit_op("apt.update", "apt_update_preview", "apt_update", FALSE)),
+                            apt_commit_op("apt.update", "apt_update_preview", "apt_update", FALSE)),
          "apt.upgrade-preview" = ro("pkgops",
-                apt_preview_op("apt.upgrade-preview", "apt_upgrade_preview", FALSE)),
+                                    apt_preview_op("apt.upgrade-preview", "apt_upgrade_preview", FALSE)),
          "apt.upgrade" = mut("pkgops",
-                apt_commit_op("apt.upgrade", "apt_upgrade_preview", "apt_upgrade", FALSE)),
+                             apt_commit_op("apt.upgrade", "apt_upgrade_preview", "apt_upgrade", FALSE)),
          "apt.dist-upgrade-preview" = ro("pkgops",
-                apt_preview_op("apt.dist-upgrade-preview", "apt_dist_upgrade_preview", FALSE)),
+            apt_preview_op("apt.dist-upgrade-preview", "apt_dist_upgrade_preview", FALSE)),
          "apt.dist-upgrade" = mut("pkgops",
-                apt_commit_op("apt.dist-upgrade", "apt_dist_upgrade_preview", "apt_dist_upgrade", FALSE)),
+                                  apt_commit_op("apt.dist-upgrade", "apt_dist_upgrade_preview", "apt_dist_upgrade", FALSE)),
          "apt.configure-preview" = ro("pkgops",
-                apt_preview_op("apt.configure-preview", "apt_configure_preview", FALSE)),
+                                      apt_preview_op("apt.configure-preview", "apt_configure_preview", FALSE)),
          "apt.configure" = mut("pkgops",
-                apt_commit_op("apt.configure", "apt_configure_preview", "apt_configure", FALSE))
+                               apt_commit_op("apt.configure", "apt_configure_preview", "apt_configure", FALSE))
     )
 }
 
@@ -236,7 +236,7 @@ apt_preview_op <- function(op, preview_name, targets) {
     function(pos, opts) {
         pos <- apt_targets(pos, targets, op)
         do.call(getExportedValue("pkgops", preview_name),
-                if (targets) list(pos) else list())
+            if (targets) list(pos) else list())
     }
 }
 
@@ -254,7 +254,7 @@ apt_commit_op <- function(op, preview_name, commit_name, targets) {
     function(pos, opts) {
         pos <- apt_targets(pos, targets, op)
         p <- do.call(getExportedValue("pkgops", preview_name),
-                     if (targets) list(pos) else list())
+            if (targets) list(pos) else list())
         if (isTRUE(opts[["preview"]])) {
             return(p)
         }

@@ -176,8 +176,8 @@ envelope_success <- function(operation, result) {
 ## durable audit records, exactly as a success result is (durable-audit).
 ERROR_PASSTHROUGH <- c("observed", "observed_failed", "observed_reason",
                        "elapsed", "polkit_action", "correlation_id",
-                       "audit_scope", "audit_persisted",
-                       "verb", "plan_hash", "status", "effect_issued", "detail")
+                       "audit_scope", "audit_persisted", "verb",
+                       "plan_hash", "status", "effect_issued", "detail")
 
 envelope_error <- function(operation, cond) {
     resource <- if (is.null(cond$resource)) {
