@@ -36,7 +36,9 @@ fix_utf8 <- function(x) {
     bad <- !is.na(x) & !validUTF8(x)
     if (any(bad)) {
         message("rctl: replaced invalid UTF-8 in ", sum(bad), " value(s)")
-        x[bad] <- iconv(x[bad], "UTF-8", "UTF-8", sub = "�")
+        ## U+FFFD via intToUtf8 so the source stays pure ASCII (R CMD check
+        ## flags a raw non-ASCII byte in R code); the runtime value is identical.
+        x[bad] <- iconv(x[bad], "UTF-8", "UTF-8", sub = intToUtf8(65533L))
     }
     x
 }
