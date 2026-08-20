@@ -52,11 +52,16 @@ jobs:
           sudo apt-get install -y r-cornball-janssonr
 
       # The Runix sibling packages are not yet on CRAN/r2u; install runix
-      # (Imports), then the subsystems (Suggests) so test_mutations and the
-      # capability tests run with them present rather than skipping.
+      # (Imports), then the subsystems (Suggests) so test_mutations, the apt.*
+      # surface, and the capability tests run with them present rather than
+      # skipping. runix links libjansson in its C core and is built from source
+      # here, so the -dev package is required -- the janssonr runtime binary
+      # alone cannot compile it. pkgops (no C) backs the apt.* operations and
+      # Imports runix + pkgstate, so it installs after them.
       - name: Install the Runix sibling packages (public repos)
         run: |
-          for pkg in runix pkgstate rsystemd hwstate; do
+          sudo apt-get install -y libjansson-dev
+          for pkg in runix pkgstate rsystemd hwstate pkgops; do
             git clone --depth 1 "https://github.com/cornball-ai/$pkg.git" "${RUNNER_TEMP}/$pkg"
             R CMD INSTALL "${RUNNER_TEMP}/$pkg"
           done
