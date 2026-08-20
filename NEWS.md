@@ -1,3 +1,10 @@
+# rctl 0.0.1.9
+
+* `R/encode.R` source is now pure ASCII: the `iconv` U+FFFD replacement character
+  is produced via `intToUtf8(65533L)` rather than a literal non-ASCII byte,
+  clearing the `R CMD check` non-ASCII-in-code warning. Runtime behavior is
+  unchanged.
+
 # rctl 0.0.1.8
 
 * Wired the **pkgops** apt package-state mutation surface into the CLI: nine
